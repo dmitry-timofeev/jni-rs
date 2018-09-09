@@ -23,6 +23,8 @@ static SIG_OBJECT_CTOR: &str = "()V";
 static SIG_MATH_ABS: &str = "(I)I";
 static SIG_OBJECT_HASH_CODE: &str = "()I";
 
+static NUM_OBJECTS_TO_ALLOCATE: u32 = 2;
+
 
 #[inline(never)]
 fn native_abs(x: i32) -> i32 {
@@ -220,6 +222,90 @@ mod tests {
 
         b.iter(|| {
             let _ = black_box(Rc::clone(&rc));
+        });
+    }
+
+    #[bench]
+    fn create_two_local_refs_and_drop(b: &mut Bencher) {
+        let env = VM.attach_current_thread().unwrap();
+        let class: JClass = CLASS_OBJECT.lookup(&env).unwrap();
+        let ctor_id = env.get_method_id(class, METHOD_CTOR, SIG_OBJECT_CTOR).unwrap();
+
+        b.iter(|| {
+            let o1 = env.auto_local(
+                env.new_object_by_id(class, ctor_id, &[]).unwrap());
+            let o2 = env.auto_local(
+                env.new_object_by_id(class, ctor_id, &[]).unwrap());
+            black_box(o1);
+            black_box(o2);
+        });
+    }
+
+    #[bench]
+    fn create_two_local_refs_in_frame(b: &mut Bencher) {
+        let env = VM.attach_current_thread().unwrap();
+        let class: JClass = CLASS_OBJECT.lookup(&env).unwrap();
+        let ctor_id = env.get_method_id(class, METHOD_CTOR, SIG_OBJECT_CTOR).unwrap();
+
+        b.iter(|| {
+            env.with_local_frame(32, || {
+                let o1 = env.new_object_by_id(class, ctor_id, &[]).unwrap();
+                let o2 = env.new_object_by_id(class, ctor_id, &[]).unwrap();
+                black_box(o1);
+                black_box(o2);
+
+                Ok(JObject::null())
+            }).unwrap();
+        });
+    }
+
+    #[bench]
+    fn create_n_local_refs_and_drop(b: &mut Bencher) {
+        let env = VM.attach_current_thread().unwrap();
+        let class: JClass = CLASS_OBJECT.lookup(&env).unwrap();
+        let ctor_id = env.get_method_id(class, METHOD_CTOR, SIG_OBJECT_CTOR).unwrap();
+
+        b.iter(|| {
+            for i in 0..NUM_OBJECTS_TO_ALLOCATE {
+                let o1 = env.auto_local(
+                    env.new_object_by_id(class, ctor_id, &[]).unwrap());
+                black_box(o1);
+            }
+        });
+    }
+
+    #[bench]
+    fn create_n_local_refs_in_frame(b: &mut Bencher) {
+        let env = VM.attach_current_thread().unwrap();
+        let class: JClass = CLASS_OBJECT.lookup(&env).unwrap();
+        let ctor_id = env.get_method_id(class, METHOD_CTOR, SIG_OBJECT_CTOR).unwrap();
+
+        b.iter(|| {
+            env.with_local_frame(NUM_OBJECTS_TO_ALLOCATE as i32, || {
+                for i in 0..NUM_OBJECTS_TO_ALLOCATE {
+                    let o1 = env.new_object_by_id(class, ctor_id, &[]).unwrap();
+                    black_box(o1);
+                }
+
+                Ok(JObject::null())
+            }).unwrap();
+        });
+    }
+
+    #[bench]
+    fn create_n_local_refs_in_indi_frames(b: &mut Bencher) {
+        let env = VM.attach_current_thread().unwrap();
+        let class: JClass = CLASS_OBJECT.lookup(&env).unwrap();
+        let ctor_id = env.get_method_id(class, METHOD_CTOR, SIG_OBJECT_CTOR).unwrap();
+
+        b.iter(|| {
+            for i in 0..NUM_OBJECTS_TO_ALLOCATE {
+                env.with_local_frame(16 as i32, || {
+                    let o1 = env.new_object_by_id(class, ctor_id, &[]).unwrap();
+                    black_box(o1);
+                    Ok(JObject::null())
+                }).unwrap();
+            }
         });
     }
 }
