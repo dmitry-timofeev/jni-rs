@@ -156,6 +156,11 @@ impl<'a> JNIEnv<'a> {
         Ok(class)
     }
 
+    /*
+Review: I think this documentation must describe that by default it works as usual FindClass.
+If needed, a global classloader may be set, in which case all subsequent invocations in any
+thread will use that global classloader.
+    */
     /// Look up a class by name.
     ///
     /// # Example
